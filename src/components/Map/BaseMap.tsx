@@ -49,6 +49,8 @@ const BaseMap: React.FC<BaseMapProps> = ({
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
+    let timeoutId: NodeJS.Timeout;
+
     // Initialize map centered on Tanzania
     const map = L.map(mapContainerRef.current, {
       center: [-6.369028, 34.888822], // Tanzania center
@@ -67,6 +69,11 @@ const BaseMap: React.FC<BaseMapProps> = ({
 
     // Handle map bounds change
     const handleBoundsChange = () => {
+      // Defensive check to ensure map is still valid and attached
+      if (!map || !map._container || !document.contains(map._container)) {
+        return;
+      }
+      
       const bounds = map.getBounds();
       const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
       onBoundsChange(bbox);
@@ -76,9 +83,13 @@ const BaseMap: React.FC<BaseMapProps> = ({
     map.on('zoomend', handleBoundsChange);
     
     // Initial bounds
-    setTimeout(handleBoundsChange, 100);
+    timeoutId = setTimeout(handleBoundsChange, 100);
 
     return () => {
+      // Clear timeout to prevent execution on stale map instance
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       map.remove();
     };
   }, [onBoundsChange]);
