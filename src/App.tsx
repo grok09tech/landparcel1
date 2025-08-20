@@ -216,6 +216,8 @@ function App() {
             onParcelClick={handleParcelClick}
             onBoundsChange={handleBoundsChange}
             mapCenter={mapCenter}
+            selectedRegions={regions.filter(r => r.enabled).map(r => r.region as TanzaniaRegion)}
+            mapCenter={mapCenter}
             className="h-full"
           />
 

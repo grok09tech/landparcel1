@@ -56,3 +56,5 @@ export interface ExportOptions {
   includeGeometry: boolean;
   selectedOnly: boolean;
 }
+
+export type TanzaniaRegion = 'Dar es Salaam' | 'Arusha' | 'Bagamoyo';

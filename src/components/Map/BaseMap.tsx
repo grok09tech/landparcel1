@@ -16,6 +16,7 @@ interface BaseMapProps {
   parcels: ParcelCollection | null;
   onParcelClick: (parcel: ParcelFeature) => void;
   onBoundsChange: (bounds: string) => void;
+  mapCenter?: { lat: number; lng: number; zoom: number };
   selectedRegions: TanzaniaRegion[];
   className?: string;
 }
@@ -36,6 +37,7 @@ const BaseMap: React.FC<BaseMapProps> = ({
   parcels,
   onParcelClick,
   onBoundsChange,
+  mapCenter,
   selectedRegions,
   className = "h-full w-full"
 }) => {
@@ -80,6 +82,13 @@ const BaseMap: React.FC<BaseMapProps> = ({
       map.remove();
     };
   }, [onBoundsChange]);
+
+  // Handle map center changes
+  useEffect(() => {
+    if (!mapRef.current || !mapCenter) return;
+    
+    mapRef.current.setView([mapCenter.lat, mapCenter.lng], mapCenter.zoom, { animate: true });
+  }, [mapCenter]);
 
   // Update parcels when data changes
   useEffect(() => {
