@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api import parcels
+from app.api import parcels, auth, listings, external
 from app.core.database import engine, Base
 
 # Create database tables
@@ -23,6 +23,9 @@ app.add_middleware(
 
 # Include routers
 app.include_router(parcels.router, prefix=settings.api_v1_str)
+app.include_router(auth.router, prefix=settings.api_v1_str)
+app.include_router(listings.router, prefix=settings.api_v1_str)
+app.include_router(external.router, prefix=settings.api_v1_str)
 
 @app.get("/")
 async def root():
@@ -30,4 +33,30 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "version": "2.0.0",
+        "features": [
+            "Land Parcel Management",
+            "User Authentication",
+            "Plot Listings",
+            "External API Integration",
+            "Shapefile Support"
+        ]
+    }
+
+@app.get("/api-docs")
+async def api_documentation():
+    return {
+        "title": "Tanzania Land Parcel System API",
+        "version": "2.0.0",
+        "description": "Comprehensive API for land parcel management and real estate integration",
+        "endpoints": {
+            "authentication": "/api/v1/auth/*",
+            "parcels": "/api/v1/parcels/*", 
+            "listings": "/api/v1/listings/*",
+            "external_integration": "/api/v1/external/*"
+        },
+        "documentation": "/docs",
+        "contact": "admin@landparcel.com"
+    }

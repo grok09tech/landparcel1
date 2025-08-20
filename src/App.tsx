@@ -1,14 +1,18 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { MapPin, Menu, X } from 'lucide-react';
+import { MapPin, Menu, X, User, LogOut, List } from 'lucide-react';
 import BaseMap from './components/Map/BaseMap';
 import SearchBar from './components/Search/SearchBar';
 import RegionFilter from './components/Search/RegionFilter';
 import ParcelDetails from './components/ParcelDetails/ParcelDetails';
 import StatsPanel from './components/Stats/StatsPanel';
+import PlotListings from './components/Listings/PlotListings';
+import LoginModal from './components/Auth/LoginModal';
+import InquiryModal from './components/Inquiry/InquiryModal';
 import LoadingSpinner from './components/UI/LoadingSpinner';
 import Button from './components/UI/Button';
 import { ParcelCollection, ParcelFeature, SearchParams, RegionFilter as RegionFilterType } from './types';
 import { apiService } from './services/api';
+import { authService, User as AuthUser } from './services/authService';
 
 // Region coordinates for map centering
 const regionCoordinates = {
@@ -24,6 +28,11 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showListings, setShowListings] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showInquiryModal, setShowInquiryModal] = useState(false);
+  const [selectedListing, setSelectedListing] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number; zoom: number } | undefined>();
   const [regions, setRegions] = useState<RegionFilterType[]>([
     { region: 'Dar es Salaam', enabled: true },
@@ -33,6 +42,10 @@ function App() {
 
   // Load initial data
   useEffect(() => {
+    // Check authentication status
+    const user = authService.getUser();
+    setCurrentUser(user);
+    
     handleRegionFilter();
   }, []);
 
@@ -114,8 +127,72 @@ function App() {
 
   const toggleStats = () => {
     setShowStats(!showStats);
+    setShowListings(false);
     setSelectedParcel(null);
     setSidebarOpen(true);
+  };
+
+  const toggleListings = () => {
+    setShowListings(!showListings);
+    setShowStats(false);
+    setSelectedParcel(null);
+    setSidebarOpen(true);
+  };
+
+  const handleLogin = async (email: string, password: string) => {
+    const authData = await authService.login({ email, password });
+    setCurrentUser(authData.user);
+  };
+
+  const handleRegister = async (userData: any) => {
+    await authService.register(userData);
+    // Auto-login after registration
+    const authData = await authService.login({ 
+      email: userData.email, 
+      password: userData.password 
+    });
+    setCurrentUser(authData.user);
+  };
+
+  const handleLogout = async () => {
+    await authService.logout();
+    setCurrentUser(null);
+  };
+
+  const handlePlotSelect = (listing: any) => {
+    // Focus map on the selected plot
+    if (listing.parcel) {
+      // You would need to get coordinates from the parcel geometry
+      // For now, focus on the region
+      const coords = regionCoordinates[listing.parcel.region as keyof typeof regionCoordinates];
+      if (coords) {
+        setMapCenter(coords);
+      }
+    }
+    setSidebarOpen(false);
+    setShowListings(false);
+  };
+
+  const handleInquire = (listing: any) => {
+    setSelectedListing(listing);
+    setShowInquiryModal(true);
+  };
+
+  const handleSubmitInquiry = async (inquiryData: any) => {
+    const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/listings/inquiries`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(inquiryData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to submit inquiry');
+    }
+
+    return response.json();
   };
 
   return (
@@ -149,6 +226,16 @@ function App() {
             {/* Mobile Menu and Stats Toggle */}
             <div className="flex items-center space-x-2">
               <Button
+                onClick={toggleListings}
+                variant="outline"
+                size="sm"
+                className="hidden sm:flex"
+              >
+                <List className="w-4 h-4 mr-1" />
+                Listings
+              </Button>
+              
+              <Button
                 onClick={toggleStats}
                 variant="outline"
                 size="sm"
@@ -156,6 +243,22 @@ function App() {
               >
                 Statistics
               </Button>
+              
+              {currentUser ? (
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600 hidden md:inline">
+                    {currentUser.first_name || currentUser.email}
+                  </span>
+                  <Button onClick={handleLogout} variant="ghost" size="sm">
+                    <LogOut className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <Button onClick={() => setShowLoginModal(true)} variant="outline" size="sm">
+                  <User className="w-4 h-4 mr-1" />
+                  Sign In
+                </Button>
+              )}
               
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -239,13 +342,32 @@ function App() {
           fixed md:relative top-0 right-0 h-full w-80 bg-white shadow-xl border-l border-gray-200 z-20
           transform transition-transform duration-300 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
-          ${!sidebarOpen && !selectedParcel && !showStats ? 'md:hidden' : ''}
+          ${!sidebarOpen && !selectedParcel && !showStats && !showListings ? 'md:hidden' : ''}
         `}>
           {selectedParcel ? (
             <ParcelDetails 
               parcel={selectedParcel}
               onClose={closeSidebar}
             />
+          ) : showListings ? (
+            <div className="h-full flex flex-col">
+              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">Available Plots</h2>
+                <button
+                  onClick={closeSidebar}
+                  className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                <PlotListings
+                  region={regions.find(r => r.enabled)?.region}
+                  onPlotSelect={handlePlotSelect}
+                  onInquire={handleInquire}
+                />
+              </div>
+            </div>
           ) : showStats ? (
             <div className="h-full flex flex-col">
               <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -281,6 +403,14 @@ function App() {
               >
                 View Statistics
               </Button>
+              <Button
+                onClick={toggleListings}
+                variant="primary"
+                className="mt-2"
+              >
+                <List className="w-4 h-4 mr-1" />
+                Browse Plots
+              </Button>
             </div>
           )}
         </div>
@@ -293,6 +423,21 @@ function App() {
           />
         )}
       </div>
+
+      {/* Modals */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onLogin={handleLogin}
+        onRegister={handleRegister}
+      />
+
+      <InquiryModal
+        isOpen={showInquiryModal}
+        onClose={() => setShowInquiryModal(false)}
+        listing={selectedListing}
+        onSubmit={handleSubmitInquiry}
+      />
     </div>
   );
 }
